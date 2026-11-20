@@ -58,18 +58,26 @@ def simple_random_sample(df: pd.DataFrame, n: int, seed: int) -> pd.DataFrame:
 
 
 def split(df: pd.DataFrame, cfg: dict, seed: int) -> pd.Series:
-    """Return a Series with values train/valid/test, stratified by treatment x visit."""
+    """Return a Series with values train/valid/test.
+
+    About 12% of the rows in the published file are exact duplicates, so users
+    with an identical feature vector are kept in the SAME split (grouped split);
+    otherwise a model could be evaluated on rows it was trained on. Groups are
+    assigned stratified by treatment x visit of their first row.
+    """
     s = cfg["split"]
-    strata = df[cfg["treatment_col"]].astype(int) * 2 + df[cfg["outcomes"]["primary"]].astype(int)
-    idx = np.arange(len(df))
-    idx_train, idx_rest = train_test_split(idx, train_size=s["train"], stratify=strata, random_state=seed)
+    key = pd.util.hash_pandas_object(df[FEATURES], index=False).to_numpy()
+    groups, first, inv = np.unique(key, return_index=True, return_inverse=True)
+    strata = (df[cfg["treatment_col"]].to_numpy().astype(int) * 2
+              + df[cfg["outcomes"]["primary"]].to_numpy().astype(int))[first]
+    g = np.arange(len(groups))
+    g_train, g_rest = train_test_split(g, train_size=s["train"], stratify=strata, random_state=seed)
     rel_valid = s["valid"] / (s["valid"] + s["test"])
-    idx_valid, idx_test = train_test_split(idx_rest, train_size=rel_valid, stratify=strata.iloc[idx_rest],
-                                           random_state=seed + 1)
-    out = pd.Series("train", index=df.index, dtype=object)
-    out.iloc[idx_valid] = "valid"
-    out.iloc[idx_test] = "test"
-    return out
+    g_valid, g_test = train_test_split(g_rest, train_size=rel_valid, stratify=strata[g_rest],
+                                       random_state=seed + 1)
+    code = np.zeros(len(groups), dtype=np.int8)
+    code[g_valid], code[g_test] = 1, 2
+    return pd.Series(np.array(["train", "valid", "test"], dtype=object)[code[inv]], index=df.index)
 
 
 def make_synthetic(n: int, seed: int) -> pd.DataFrame:

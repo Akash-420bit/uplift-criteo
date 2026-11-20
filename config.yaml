@@ -2,7 +2,8 @@
 # Every number that affects the results is set here, so a re-run with this
 # file reproduces the results/ folder.
 
-seed: 42                       # master seed (sampling, splits, models, bootstrap)
+seed: 42                       # master seed of the main run (sampling, splits, models, bootstrap)
+extra_seeds: [1, 2, 3, 4]      # robustness: whole pipeline (new sample, split, tuning) re-run for visit
 
 data:
   # Official file (Criteo AI Lab). The official link redirects to Criteo's
@@ -13,7 +14,7 @@ data:
   raw_path: data/criteo-research-uplift-v2.1.csv.gz
   sample_size: 2000000         # simple random sample (without replacement) of the ~14M rows
 
-split:                         # stratified by treatment x visit
+split:                         # stratified by treatment x visit; identical feature vectors kept together
   train: 0.60
   valid: 0.20
   test: 0.20
@@ -27,7 +28,7 @@ features: [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11]
 
 models:
   n_jobs: -1
-  lightgbm:                    # used for response model, T-learner, transformed outcome
+  lightgbm:                    # shared settings of every LightGBM model
     n_estimators: 2000         # upper bound; early stopping on the validation split
     learning_rate: 0.05
     num_leaves: 31
@@ -36,19 +37,24 @@ models:
     subsample_freq: 1
     colsample_bytree: 0.8
     early_stopping_rounds: 50
-  transformed_outcome:         # noisier target -> larger leaves, slower learning
-    learning_rate: 0.02
-    min_child_samples: 2000
-  causal_forest:               # EconML CausalForestDML
-    train_subsample: 200000    # rows drawn from the training split (keeps Colab < 20 min)
+  causal_forest:               # EconML CausalForestDML, trained on ALL training users
     n_estimators: 200
     min_samples_leaf: 200
-    max_samples: 0.4
+    max_samples: 0.07          # each tree is grown on a random 7% (~84,000 users) of the training split
     cv: 2
     nuisance_n_estimators: 200 # LightGBM outcome model inside the DML first stage
+  # Hyperparameters chosen by the AUQC (Qini coefficient) on the VALIDATION split.
+  tuning_grid:
+    response:      {num_leaves: [15, 63], min_child_samples: [500, 5000]}
+    t_learner:     {num_leaves: [15, 63], min_child_samples: [500, 5000]}
+    x_learner:     {num_leaves: [15, 63], min_child_samples: [500, 5000]}
+    trans_out:     {num_leaves: [15, 31], min_child_samples: [2000, 10000]}
+    dr_learner:    {num_leaves: [15, 31], min_child_samples: [2000, 10000]}
+    causal_forest: {min_samples_leaf: [100, 500]}
+  hybrid_weights: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]   # weight on the response rank
 
 evaluation:
-  n_bootstrap: 200
+  n_bootstrap: 1000           # paired bootstrap resamples of the test users
   top_k: [0.10, 0.20, 0.30]
   curve_points: 101            # points stored for plotting curves
 

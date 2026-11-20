@@ -1,0 +1,6 @@
+metric,value
+rows_full_file,13979592.0
+exact_duplicate_rows_full_file,1655747.0
+duplicate_feature_vectors_full_file,2120151.0
+test_rows_with_feature_vector_in_train,0.0
+same_share_if_split_ignored_duplicates,0.0369

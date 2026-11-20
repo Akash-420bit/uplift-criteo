@@ -8,16 +8,33 @@ Team: Aparna Chaudhary (lead), Pramit Manna, Akash Anant.
 A standard *response model* ranks customers by how likely they are to act (here: visit
 the advertiser's website). Many of those customers would have acted **without** the ad.
 *Uplift modeling* instead ranks customers by the estimated **incremental** effect of the
-campaign, τ(x) = E[Y(1) − Y(0) | X = x]. We compare one response model and three uplift
-methods on a large randomized advertising experiment and turn the rankings into a
+campaign, τ(x) = E[Y(1) − Y(0) | X = x]. We compare one response model, five uplift
+methods and a hybrid score on a large randomized advertising experiment and turn the rankings into a
 profit-based targeting decision.
 
-| Method | Idea | Code |
-|---|---|---|
-| Response model (baseline) | LightGBM P(visit \| X), ignores treatment | `src/models.py` |
-| Two-model (T-learner) | separate LightGBM models for treated and control, score = difference | `src/models.py` |
-| Transformed outcome | LightGBM regression on Z = Y·T/p − Y·(1−T)/(1−p), p = treated share (≈0.85) | `src/models.py` |
-| Causal forest | EconML `CausalForestDML`, trained on a 200,000-row subsample of the training split | `src/models.py` |
+| Method | Idea |
+|---|---|
+| Response model (baseline) | LightGBM P(visit \| X), ignores treatment |
+| T-learner | separate LightGBM models for treated and control; score = difference |
+| X-learner | imputed individual effects, combined with the treated share (Künzel et al. 2019) |
+| Transformed outcome | LightGBM regression on Z = Y·T/p − Y·(1−T)/(1−p), p = treated share (≈0.85) |
+| DR-learner | regression on the doubly robust pseudo-outcome, cross-fitted nuisance models (Kennedy 2023) |
+| Causal forest | EconML `CausalForestDML` (a forest R-learner), all training users |
+| Hybrid | rank blend of the response score and the best uplift score; weight chosen on validation |
+
+Every method is trained on the same 1.2M training users and its hyperparameters are
+chosen by the **Qini coefficient on the validation split** (grids in `config.yaml`).
+Code: `src/models.py`.
+
+**Extra analyses** (all from the same run):
+* **Exposure / complier effect** – using `treatment` as an instrument for `exposure`,
+  the effect of the ad on users who actually saw it (CACE), overall and by score decile.
+* **Randomization audit** – z-tests of feature differences, a classifier that tries to
+  predict treatment from the features, and regression-adjusted vs. unadjusted effects.
+* **Data quality** – 11.8% of the published rows are exact duplicates; the split keeps
+  identical feature vectors together so no test user also appears in training.
+* **Robustness** – the whole pipeline (new 2M sample, split, tuning) is repeated for
+  5 seeds; test comparisons use 1,000 paired bootstrap resamples with Holm correction.
 
 ## Data
 
@@ -32,7 +49,8 @@ outcomes `visit` and `conversion`, and `exposure`. See [`docs/data_dictionary.md
   November 2026, so the default source is a byte-identical GitHub copy; the checksum
   proves it is the same file.)
 * We use a **simple random sample of 2,000,000 users** (seed 42), split 60/20/20 into
-  train / validation / test, stratified by treatment × visit.
+  train / validation / test, stratified by treatment × visit, with identical feature
+  vectors kept in the same split (the file contains many duplicate rows).
 * We use the randomized `treatment` column, **not** `exposure`.
 * Primary outcome: `visit`. Secondary: `conversion` (very rare, ≈0.3%).
 * The raw data is **not** stored in this repository.
@@ -57,7 +75,8 @@ pip install -r requirements.txt
 python -m src.pipeline --step all        # downloads data, runs everything, writes results/
 ```
 
-Individual steps: `--step prepare | train | evaluate | budget | report`.
+Individual steps: `--step prepare | train | evaluate | exposure | budget | seeds | report`.
+The `seeds` step (4 extra seeds) is the slowest; everything else does not need it.
 Quick test on synthetic data with the same columns (≈30 s, writes elsewhere):
 
 ```bash
@@ -69,19 +88,22 @@ python -m src.pipeline --step all --synthetic 200000 --results /tmp/synthetic_re
 | Step | 4-core Linux machine (our run) | Free Colab (2 cores, estimate) |
 |---|---|---|
 | download (311 MB) | < 1 min | 1–3 min |
-| prepare (read 14M rows, sample, split, checks) | 31 s | 2–4 min |
-| train (8 models: 4 methods × 2 outcomes) | ≈ 8 min (causal forest for visit: 3.4 min) | 20–35 min (causal forest < 10 min) |
-| evaluate (200 paired bootstrap resamples) | ≈ 1 min | 2–4 min |
-| budget + report | < 1 min | 1–2 min |
+| prepare (read 14M rows, audit, exposure analysis, sample, split) | 1.7 min | 4–6 min |
+| train (6 methods × 2–4 settings × 2 outcomes, + hybrid) | ≈ 20 min (causal forest ≈ 80 s per setting) | 45–60 min |
+| evaluate (1,000 paired bootstrap resamples, 7 scores × 2 outcomes) | ≈ 6 min | 10–15 min |
+| exposure, budget, report | ≈ 2 min | 3–5 min |
+| seeds (4 extra seeds, visit only; optional) | ≈ 45 min | 1.5–2.5 h |
 
 All seeds are fixed in `config.yaml`; re-running gives identical model scores
-(checked: maximum absolute difference 0 for LightGBM, 2·10⁻¹⁷ for the causal forest).
+(checked: maximum absolute difference 0 for the X-learner, 8·10⁻¹⁷ for the causal forest).
+Do not run two pipelines at once on the same machine: LightGBM slows down sharply when
+several processes use all cores.
 
 ## Configuration
 
 [`config.yaml`](config.yaml) holds every setting: seed (42), sample size (2,000,000),
-split ratios (0.6/0.2/0.2), model hyperparameters, causal-forest subsample (200,000),
-bootstrap resamples (200), top-k fractions (10/20/30%), and the illustrative budget
+split ratios (0.6/0.2/0.2), tuning grids (chosen by validation Qini), causal-forest settings (all training users, 7% per tree),
+bootstrap resamples (1,000), extra seeds (1–4), top-k fractions (10/20/30%), and the illustrative budget
 parameters (main scenario V = 100 per incremental visit, c = 1.5 per contact;
 sensitivity grid V ∈ {50, 100, 200}, c ∈ {0.5, 1, 1.5, 2, 3}).
 
@@ -91,9 +113,9 @@ sensitivity grid V ∈ {50, 100, 200}, c ∈ {0.5, 1, 1.5, 2, 3}).
 config.yaml                  all settings
 requirements.txt             exact package versions used
 src/data.py                  download + checksum, sampling, stratified split, synthetic data
-src/models.py                the four methods
+src/models.py                the six methods (hybrid is built in pipeline.py)
 src/metrics.py               Qini curve, AUQC, top-k uplift, profit, bootstrap
-src/pipeline.py              the steps (prepare/train/evaluate/budget/report)
+src/pipeline.py              the steps (prepare/train/evaluate/exposure/budget/seeds/report)
 src/report.py                figures (PDF+PNG) and LaTeX tables from the CSVs
 notebooks/reproduce_colab.ipynb   one-cell-per-step Colab notebook
 docs/data_dictionary.md      column definitions
@@ -107,19 +129,22 @@ All numbers in the paper come from these files (test split, 400,000 users, unles
 
 | Paper item | File(s) |
 |---|---|
-| Table: dataset profile | `results/dataset_profile.csv` → `results/tables/tab_dataset_profile.tex` |
-| Table: randomization check (SMD) | `results/randomization_check.csv` → `results/tables/tab_randomization.tex` |
-| Table: main results (AUQC, top-k uplift, 95% CIs, paired differences) | `results/main_results.csv`, `results/paired_differences.csv` → `results/tables/tab_main_results.tex` |
+| Table: dataset profile (+ duplicate rows) | `results/dataset_profile.csv`, `results/data_quality.csv` → `results/tables/tab_dataset_profile.tex` |
+| Table: randomization audit (SMD, z-tests, classifier AUC) | `results/randomization_check.csv`, `results/imbalance_tests.csv` → `results/tables/tab_randomization.tex` |
+| Regression-adjusted vs unadjusted effect | `results/imbalance_tests.csv` |
+| Table: main results, visit (AUQC, top-k, CIs, paired differences, Holm) | `results/main_results.csv`, `results/paired_differences.csv` → `results/tables/tab_main_results.tex` |
+| Conversion results | same files (outcome = conversion) → `results/tables/tab_conversion.tex` |
+| Table: robustness over 5 seeds | `results/seed_results.csv`, `results/seed_summary.csv` → `results/tables/tab_seeds.tex` |
+| Table: ITT and complier effect (CACE) | `results/exposure_full.csv` → `results/tables/tab_exposure.tex` |
+| Fig.: exposure and uplift by score decile | `results/exposure_by_decile.csv`, `results/exposure_summary.csv` → `results/figures/exposure_by_decile.{pdf,png}` |
 | Table: budget simulation | `results/budget_simulation.csv` → `results/tables/tab_budget.tex` |
 | Fig.: Qini curves (visit) | `results/figures/qini_curves_visit.{pdf,png}` (data: `results/qini_curves.csv`) |
 | Fig.: uplift in top 10/20/30% with CIs | `results/figures/uplift_topk_visit.{pdf,png}` |
 | Fig.: profit vs targeting fraction | `results/figures/profit_vs_targeting_fraction.{pdf,png}` (data: `results/profit_curves.csv`) |
 | Sensitivity grid over (V, c) | `results/sensitivity_grid.csv` |
-| Conversion (secondary) figures | `results/figures/*_conversion.{pdf,png}` |
-| Model details (trees, training rows, fit time) | `results/model_info.csv` |
-| Rank correlation between model scores (Discussion) | `results/score_correlations.csv` |
-| Console log of the real run | `results/run_log.txt` |
-| Software versions of the run | `results/run_environment.json` |
+| Tuning (all settings, validation AUQC used for selection; test AUQC recorded for reporting only) and hybrid weights | `results/tuning.csv`, `results/seed_tuning.csv` |
+| Rank correlation between model scores | `results/score_correlations.csv` |
+| Software versions / console log of the run | `results/run_environment.json`, `results/run_log.txt` |
 
 **Metric definitions** (implemented in `src/metrics.py`). Users are sorted by model score.
 Qini curve Q(k) = Y_T(k) − Y_C(k)·N_T(k)/N_C(k). AUQC = area between the model's Qini
@@ -128,8 +153,10 @@ per 1,000 users). Top-k uplift = visit rate of treated minus control among the t
 users. Profit per 1,000 users Π(φ) = 1000·(V·U(φN)/N − c·φ), where
 U(k) = k·(ȳ_T(k) − ȳ_C(k)) are the incremental visits if all top-k users are contacted;
 φ is chosen on the validation split and profit is reported on the test split.
-Confidence intervals: 200 paired bootstrap resamples of test users (percentile 95% CIs);
-the ranking is fixed and the same resampled users are used for every method.
+Confidence intervals: 1,000 paired bootstrap resamples of test users (percentile 95% CIs);
+the ranking is fixed and the same resampled users are used for every method. Two-sided
+bootstrap p-values of the 24 comparisons with the response model (per outcome) are
+Holm-corrected. Complier effect: CACE = ITT / P(exposed | treated), delta-method CI.
 
 ## Citation of the data
 
