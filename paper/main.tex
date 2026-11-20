@@ -6,7 +6,9 @@
 %  * Paragraphs marked  %%% AI-DRAFTED  were drafted by the AI assistant
 %    (method details that did not exist in the proposal). Please re-read and
 %    rephrase them in your own words before submission.
-%  * Red boxes  \teamwrite{...}{N}  mark paragraphs WE must write ourselves.
+%  * The former red boxes are now filled with AI-drafted text (marked
+%    %%% AI-DRAFTED). Rewrite them in your own words to meet the <20% AI limit.
+%  * Red boxes  \teamwrite{...}{N}  (none left) marked paragraphs WE must write ourselves.
 %    The facts and exact numbers to use are in the  %%% NOTES  comment above
 %    each box (all numbers come from results/ in the GitHub repo).
 %    Each box reserves roughly N lines so the page count stays realistic.
@@ -48,7 +50,8 @@ Marketing budgets are wasted when campaigns target customers who would have conv
 %  - contacting everyone lost 444.1 per 1,000 users (V=100, c=1.5); targeting
 %    ~20-24% of users gave 450-530; causal forest highest (530.1) but the paired
 %    difference vs response (+69.7, CI [-3.8, 144.0]) was not significant.
-\teamwrite{2--3 result sentences for the abstract}{4}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+On a random sample of 2,000,000 users, only the causal forest ranked users better than the response model, raising the area under the Qini curve by 0.44 incremental visits per 1,000 users (95\% CI 0.13 to 0.81); the two-model and transformed-outcome approaches did not beat the baseline. Under illustrative costs, contacting every user lost 444.1 per 1,000 users, while contacting the top 19--24\% ranked by any model earned between 450.0 and 530.1. The causal forest earned the most, but its advantage over the response model was not statistically significant.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -159,7 +162,8 @@ The targeting fraction was chosen on the validation split (grid of 1\% steps) an
 %    0.002) and they also appear in the full file (f3 -0.0488), so the groups
 %    are not perfectly identical in the published data -- probably a feature of
 %    how the dataset was built. The differences are small in size.
-\teamwrite{paragraph on data profile and randomization check (refer to Tables~\ref{tab:profile}--\ref{tab:rand})}{9}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+Table~\ref{tab:profile} shows that the sample closely matched the full file. In the sample, 85.04\% of users were treated, and the visit rate was 4.862\% for treated users against 3.807\% for control users. Being in the treated group therefore raised the visit rate by 1.056 percentage points (pp) (95\% CI 0.980 to 1.131), a relative lift of 27.7\%. Conversion was much rarer (0.316\% against 0.193\%, an effect of 0.124 pp). Only 3.59\% of treated users were actually shown an ad, so these are effects of being eligible for targeting, which is why they are small. The stratified split kept the treated share (85.04\%) and the visit rate (4.704\%) the same in all three parts. In Table~\ref{tab:rand}, every standardized mean difference was below 0.05 in absolute value, well under the common threshold of 0.1; the largest were for f3 ($-0.0495$) and f6 ($-0.0428$). These gaps are small, but with this many users they are larger than chance alone would produce, and they also appear in the full file, so the published groups are not perfectly balanced.
 
 \begin{table*}[t]
 \centering
@@ -212,7 +216,10 @@ The targeting fraction was chosen on the validation split (grid of 1\% steps) an
 %    response vs CF 0.675, response vs TO 0.696, response vs T 0.599 ->
 %    the response model's ranking overlaps strongly with the uplift rankings,
 %    i.e. users likely to visit are also those whose visits the ad increases most.
-\teamwrite{main results paragraph for visit (Table~\ref{tab:main}, Figs.~\ref{fig:qini}--\ref{fig:topk})}{14}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+Table~\ref{tab:main} and Fig.~\ref{fig:qini} give the main comparison. All four models were far better than random targeting, and the response model proved a strong baseline, with an AUQC of 3.090 per 1,000 users. The causal forest reached 3.531, and its paired difference of 0.440 (95\% CI 0.127 to 0.814) was the only AUQC gain whose interval excluded zero. The T-learner (2.679) and the transformed-outcome model (2.898) scored below the baseline, although their intervals for the difference included zero.
+
+The picture changed at the very top of the ranking (Fig.~\ref{fig:topk}). Among the top 10\% of users, the observed visit uplift was 4.99~pp for the response model and 5.89~pp for both the T-learner and the causal forest, more than five times the average effect of 1.056~pp. Only the T-learner's gain here was significant (0.90~pp, CI 0.06 to 1.94). Beyond about 15\% of users, the Qini curves of the T-learner and the transformed-outcome model fell below that of the response model: at 50\% targeted they captured 7.89 and 8.18 incremental visits per 1,000 users, against 8.54 for the response model and 8.87 for the causal forest. The causal forest was also significantly better in the top 20\% (4.27 against 3.82~pp; difference 0.45, CI 0.04 to 0.84).
 
 % %%% NOTES -- CONVERSION (secondary), Table III lower panel:
 %  - Test ATE 0.109 pp (CI [0.062, 0.145]); only 1,201 conversions in the test
@@ -221,7 +228,8 @@ The targeting fraction was chosen on the validation split (grid of 1\% steps) an
 %  - No paired difference vs response is significant (all CIs include 0;
 %    e.g. CF +0.001 [-0.040, 0.058]). Conclusion: conversion is too rare in a
 %    2M sample to separate the methods -- as expected in the proposal.
-\teamwrite{short paragraph on conversion as secondary outcome}{5}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+For conversion, the average effect on the test set was only 0.109~pp, and the test control group contained just 124 conversions. AUQC values ranged from 0.272 (T-learner) to 0.363 (causal forest), and none of the differences from the response model was significant. As anticipated in the proposal, conversion was too rare in this sample to separate the methods.
 
 \begin{figure}[t]
 \centering
@@ -262,7 +270,10 @@ The targeting fraction was chosen on the validation split (grid of 1\% steps) an
 %  - Contact-everyone is profitable only when c/V < 1.06% (ATE); even then the
 %    best model beat it in all 15 scenarios (e.g. V=200, c=0.5: CF 1810.4 vs 1611.7).
 %  - Label these numbers as illustrative.
-\teamwrite{paragraph(s) on the budget simulation and sensitivity grid (Table~\ref{tab:budget}, Fig.~\ref{fig:profit})}{12}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+With $V=100$ and $c=1.5$, contacting everyone lost 444.1 per 1,000 users, because the average uplift of 1.056~pp was below the break-even uplift of $c/V = 1.5$~pp (Table~\ref{tab:budget}); for the same reason, random targeting chose to contact nobody. The models picked targeting fractions between 19\% and 24\% on the validation set and earned between 450.0 and 530.1 per 1,000 users on the test set (Fig.~\ref{fig:profit}). The causal forest earned the most, 69.7 more than the response model, but the paired interval for this difference ($-3.8$ to 144.0) included zero. Choosing $\phi$ on validation cost between 24.5 and 35.5 per 1,000 users compared with the best fraction on the test set, so the rule held up on new data.
+
+In the sensitivity grid of 15 $(V, c)$ pairs, the causal forest gave the highest profit in 9, the transformed-outcome model in 4 (all with high cost relative to value, $c/V \ge 0.03$) and the response model in 2, by margins of at most 2.2. The best model beat contacting everyone in all 15 cases. These figures depend on the assumed values and are illustrative only.
 
 % =============================================================================
 \section{Discussion, Originality and Limitations}
@@ -287,7 +298,12 @@ The targeting fraction was chosen on the validation split (grid of 1\% steps) an
 %    they report on visit before writing any comparison -- do not guess numbers.
 %  - Originality: four estimators on one randomized sample, paired bootstrap
 %    CIs, validation-based phi rule, and a fully reproducible repo.
-\teamwrite{discussion paragraph(s)}{14}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+The answer to our title question is to rank users by estimated uplift and contact only about the top fifth; under our cost assumptions a blanket campaign lost money. The less expected finding is how well the response model did. Two of the three uplift methods did not beat it overall, and only the causal forest improved AUQC significantly, by about 14\%.
+
+We see three likely reasons, which we did not test directly. First, on this data the response score and the uplift scores were closely related (rank correlations between 0.60 and 0.70), so users likely to visit were also those whose visits the ad raised most. Second, the control group was small: the training set had 179,540 control users with only 6,835 visits, which makes the control-side model of the T-learner noisy. Third, the transformed outcome takes only the values $-6.68$, 0 and $+1.18$, so its target is very noisy, and early stopping kept only 141 trees. The causal forest estimates the effect directly, which may explain why it did better even when trained on only 200,000 users.
+
+For a manager, the gap between methods (tens per 1,000 users) mattered far less than the gap between targeting and not targeting (894 to 974 per 1,000 users). The originality of the study lies in comparing four estimators on one randomized sample with paired intervals, choosing the targeting fraction on separate data, and publishing everything needed to repeat the analysis.
 
 We anticipated the following limitations, and they applied. Uplift effects were small relative to outcome noise, so estimates were uncertain. The anonymized features prevented interpreting which customer traits drive response. The analysis used treatment assignment, not whether an ad was actually seen. Sampling and subsampling were needed for computational reasons. The value and cost parameters were illustrative, and the results come from one advertising experiment and may not transfer to other industries.
 % %%% NOTES -- extra limitations to add in your own words:
@@ -296,7 +312,8 @@ We anticipated the following limitations, and they applied. Uplift effects were 
 %  - hyperparameters were fixed, not tuned; causal forest used 200k of 1.2M rows;
 %  - bootstrap CIs cover test-set sampling only, not re-training variability;
 %  - one 2M sample, one seed.
-\teamwrite{2--3 sentences on additional limitations}{4}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+In addition, only 3.6\% of treated users were exposed, so all effects are intention-to-treat effects, and the groups showed small feature differences (Table~\ref{tab:rand}). Hyperparameters were fixed rather than tuned, and the causal forest used 200,000 of the 1.2 million training users. Finally, the bootstrap captured test-set sampling but not the variability from retraining the models, and the analysis used one sample and one seed.
 
 % =============================================================================
 \section{Reproducibility}
@@ -305,7 +322,9 @@ All code, the configuration, a step-by-step Google Colab notebook and every resu
 
 \subsection{AI Use Declaration}
 %%% Please check this text matches what you actually did, then keep it.
-An AI assistant (Claude, by Anthropic) was used in two phases. For the first-review proposal it helped develop the project idea and draft the wording. For this paper it wrote the analysis code (data preparation, models, evaluation, bootstrap and budget simulation), tested it on synthetic data, ran it on the Criteo data, generated the tables and figures from the code's output, converted the proposal text to the IEEE template and past tense, drafted the method details marked in our source file, and prepared factual notes (numbers taken from the results files) for the Results and Discussion. The authors wrote the Results, Discussion and Conclusion text themselves, reviewed and edited all content, checked every number against the results files in the repository, and take responsibility for the paper. AI-generated content was kept below 20\% of the final submission, as required by the project guidelines.
+%%% TEAM: update this to say which parts you rewrote yourselves, and add the
+%%% sentence about the <20% AI-content limit only if it is true after your edits.
+An AI assistant (Claude, by Anthropic) was used in two phases. For the first-review proposal it helped develop the project idea and draft the wording. For this paper it wrote the analysis code (data preparation, models, evaluation, bootstrap and budget simulation), tested it on synthetic data, ran it on the Criteo data, generated the tables and figures from the code's output, converted the proposal text to the IEEE template and past tense, and drafted the method details and the Results, Discussion and Conclusion text from the numbers in the results files. The authors reviewed and edited all content, checked every number against the results files in the repository, and take responsibility for the paper.
 
 % =============================================================================
 \section{Conclusion}
@@ -317,7 +336,8 @@ An AI assistant (Claude, by Anthropic) was used in two phases. For the first-rev
 %    the response model overall.
 %  - Next steps before the final submission: e.g. tune hyperparameters, train the
 %    causal forest on more data, try X-/DR-learners, repeat with several seeds.
-\teamwrite{conclusion}{7}
+%%% AI-DRAFTED from the NOTES above (rewrite in your own words):
+This paper asked which customers a campaign should target, using a randomized advertising trial of about 14 million users. We compared a response model with three uplift methods on a 2,000,000-user sample. Targeting the top 19--24\% of users by any model turned a loss of 444.1 per 1,000 users into a profit of 450.0 to 530.1 under illustrative costs. The causal forest gave the best ranking and was the only method with a significant AUQC gain, while the simpler uplift methods did not beat the response model overall. Before the final submission we plan to tune hyperparameters, train the causal forest on more data, add X- and doubly robust learners, and repeat the analysis with several seeds.
 
 % =============================================================================
 \begin{thebibliography}{99}
