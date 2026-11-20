@@ -1,0 +1,209 @@
+"""Figures (PDF + PNG, IEEE single-column width) and booktabs LaTeX tables,
+generated only from the CSV files in results/."""
+from __future__ import annotations
+
+import os
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+
+from .models import METHODS, SHORT  # noqa: E402
+
+COLORS = {"response": "#2a78d6", "t_learner": "#eb6834", "trans_out": "#1baf7a",
+          "causal_forest": "#eda100", "random": "#8a8984"}
+STYLES = {"response": "-", "t_learner": "--", "trans_out": "-.", "causal_forest": ":", "random": (0, (1, 2))}
+MARKERS = {"response": "o", "t_learner": "s", "trans_out": "^", "causal_forest": "D"}
+COL_W = 3.45  # inches, IEEE single column
+
+plt.rcParams.update({"font.size": 7.5, "axes.titlesize": 8, "axes.labelsize": 7.5, "legend.fontsize": 6.5,
+                     "xtick.labelsize": 7, "ytick.labelsize": 7, "axes.spines.top": False,
+                     "axes.spines.right": False, "axes.grid": True, "grid.color": "#e4e3df",
+                     "grid.linewidth": 0.5, "axes.edgecolor": "#52514e", "axes.linewidth": 0.6,
+                     "font.family": "serif", "pdf.fonttype": 42, "lines.linewidth": 1.3})
+
+
+def _save(fig, out_dir, name):
+    os.makedirs(out_dir, exist_ok=True)
+    fig.savefig(os.path.join(out_dir, name + ".pdf"), bbox_inches="tight")
+    fig.savefig(os.path.join(out_dir, name + ".png"), bbox_inches="tight", dpi=300)
+    plt.close(fig)
+
+
+def fig_qini(curves, outcome, out_dir):
+    c = curves[curves.outcome == outcome]
+    fig, ax = plt.subplots(figsize=(COL_W, 2.3))
+    for m in METHODS:
+        d = c[c.method == m]
+        ax.plot(d.phi * 100, d.qini_per_user * 1000, color=COLORS[m], ls=STYLES[m], label=SHORT[m])
+    d = c[c.method == METHODS[0]]
+    ax.plot(d.phi * 100, d.random_qini_per_user * 1000, color=COLORS["random"], ls=STYLES["random"],
+            label="Random targeting")
+    ax.set_xlabel("Users targeted, ranked by model score (%)")
+    ax.set_ylabel(f"Incremental {outcome}s per 1,000 users\n(Qini, $Q(k)/N\\times 1000$)")
+    ax.set_xlim(0, 100)
+    ax.legend(frameon=False, loc="lower right")
+    _save(fig, out_dir, f"qini_curves_{outcome}")
+
+
+def fig_topk(main, outcome, out_dir, top_k):
+    d = main[main.outcome == outcome]
+    fig, ax = plt.subplots(figsize=(COL_W, 2.1))
+    width = 0.19
+    xs = np.arange(len(top_k))
+    for j, m in enumerate(METHODS):
+        est, lo, hi = [], [], []
+        for k in top_k:
+            r = d[(d.method == m) & (d.metric == f"uplift_top{int(round(k * 100))}")].iloc[0]
+            est.append(r.estimate * 100), lo.append(r.ci_low * 100), hi.append(r.ci_high * 100)
+        est, lo, hi = map(np.array, (est, lo, hi))
+        ax.bar(xs + (j - 1.5) * width, est, width * 0.9, color=COLORS[m], label=SHORT[m],
+               yerr=[est - lo, hi - est], error_kw={"elinewidth": 0.7, "capsize": 1.5, "ecolor": "#3a3936"})
+    ate = d[(d.method == "response") & (d.metric == "ate")].iloc[0].estimate * 100
+    ax.axhline(ate, color=COLORS["random"], ls="--", lw=0.9, label=f"All users (ATE {ate:.2f} pp)")
+    ax.set_xticks(xs, [f"Top {int(round(k * 100))}%" for k in top_k])
+    ax.set_ylabel(f"Observed {outcome} uplift (pp)")
+    ax.legend(frameon=False, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.22))
+    ax.grid(axis="x", visible=False)
+    _save(fig, out_dir, f"uplift_topk_{outcome}")
+
+
+def fig_profit(curves, budget, V, c, out_dir):
+    fig, ax = plt.subplots(figsize=(COL_W, 2.2))
+    for m in METHODS + ["random"]:
+        d = curves[curves.method == m]
+        ax.plot(d.phi * 100, d.profit_test, color=COLORS[m], ls=STYLES[m],
+                label="Random targeting" if m == "random" else SHORT[m])
+        if m in MARKERS:
+            r = budget[budget.policy == m].iloc[0]
+            ax.plot(r.phi_selected * 100, r.profit_test, marker=MARKERS[m], color=COLORS[m], ms=5,
+                    mec="white", mew=0.8, ls="none")
+    ax.axhline(0, color="#52514e", lw=0.6)
+    ax.set_xlabel("Targeting fraction $\\phi$ (%)")
+    ax.set_ylabel("Test profit per 1,000 users")
+    ax.set_xlim(0, 100)
+    ax.set_title(f"$V={V:g}$, $c={c:g}$ (illustrative); markers = $\\phi^*$ chosen on validation",
+                 fontsize=6.8)
+    ax.legend(frameon=False, loc="upper right")
+    _save(fig, out_dir, "profit_vs_targeting_fraction")
+
+
+# ----------------------------------------------------------------------------- tables
+def _num(x, nd, sign=False):
+    """Format a number for LaTeX: no negative zero, proper minus sign."""
+    v = round(float(x), nd) + 0.0
+    s = f"{v:+.{nd}f}" if sign else f"{v:.{nd}f}"
+    return s.replace("-", "$-$")
+
+
+def _fmt_ci(est, lo, hi, scale, nd):
+    return f"{_num(est * scale, nd)} [{_num(lo * scale, nd)}, {_num(hi * scale, nd)}]"
+
+
+def _write(out_dir, name, body):
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, name + ".tex"), "w") as fh:
+        fh.write("% Auto-generated by src/report.py from results/*.csv -- do not edit by hand.\n" + body)
+
+
+def tab_profile(prof, out_dir):
+    p = prof.set_index("metric")
+
+    def row(label, key, scale=1.0, nd=2, pct=False, intfmt=False):
+        f, s = p.loc[key, "full_file"], p.loc[key, "sample"]
+        if intfmt:
+            return f"{label} & {int(f):,} & {int(s):,} \\\\\n"
+        suf = "" if not pct else ""
+        return f"{label} & {f * scale:.{nd}f}{suf} & {s * scale:.{nd}f}{suf} \\\\\n"
+
+    body = ("\\begin{tabular}{lrr}\n\\toprule\n & Full file & Sample \\\\\n\\midrule\n"
+            + row("Users", "n_rows", intfmt=True)
+            + row("Treated share (\\%)", "treatment_share", 100, 2)
+            + row("Visit rate, treated (\\%)", "visit_rate_treated", 100, 3)
+            + row("Visit rate, control (\\%)", "visit_rate_control", 100, 3)
+            + row("Visit ATE (pp)", "visit_ate", 100, 3)
+            + row("Conversion rate, treated (\\%)", "conversion_rate_treated", 100, 3)
+            + row("Conversion rate, control (\\%)", "conversion_rate_control", 100, 3)
+            + row("Conversion ATE (pp)", "conversion_ate", 100, 3)
+            + row("Exposure rate, treated (\\%)", "exposure_rate_treated", 100, 2)
+            + "\\midrule\n"
+            + "Train / valid / test & & " + " / ".join(f"{int(p.loc[f'n_{s}', 'sample']):,}"
+                                                      for s in ["train", "valid", "test"]) + " \\\\\n"
+            + "\\bottomrule\n\\end{tabular}\n")
+    _write(out_dir, "tab_dataset_profile", body)
+
+
+def tab_randomization(rc, out_dir):
+    lines = "".join(f"{r.feature} & {_num(r.mean_treated, 3)} & {_num(r.mean_control, 3)} & {_num(r.smd, 4, True)} & {_num(r.smd_full_file, 4, True)} \\\\\n"
+                    for r in rc.itertuples())
+    body = ("\\begin{tabular}{lrrrr}\n\\toprule\nFeature & Mean (T) & Mean (C) & SMD & SMD (full) \\\\\n"
+            "\\midrule\n" + lines + "\\midrule\n"
+            + f"max $|$SMD$|$ & & & {rc.smd.abs().max():.4f} & {rc.smd_full_file.abs().max():.4f} \\\\\n"
+            "\\bottomrule\n\\end{tabular}\n")
+    _write(out_dir, "tab_randomization", body)
+
+
+def tab_main(main, diffs, out_dir, top_k):
+    ks = [f"uplift_top{int(round(k * 100))}" for k in top_k]
+    head = ("\\begin{tabular}{l" + "c" * (1 + len(ks)) + "}\n\\toprule\nMethod & AUQC ($\\times10^3$) & "
+            + " & ".join(f"Top {k[10:]}\\% uplift (pp)" for k in ks) + " \\\\\n")
+    body = head
+    for outcome, nd_u in [("visit", 2), ("conversion", 3)]:
+        d = main[main.outcome == outcome]
+        ate = d[(d.method == "response") & (d.metric == "ate")].iloc[0]
+        body += (f"\\midrule\n\\multicolumn{{{2 + len(ks)}}}{{l}}{{\\textit{{Outcome: {outcome}"
+                 f" (test ATE {ate.estimate * 100:.{nd_u + 1}f} pp)}}}} \\\\\n")
+        for m in METHODS:
+            cells = []
+            for k, sc, nd in [("auqc", 1000, 3)] + [(k, 100, nd_u) for k in ks]:
+                r = d[(d.method == m) & (d.metric == k)].iloc[0]
+                cells.append(_fmt_ci(r.estimate, r.ci_low, r.ci_high, sc, nd))
+            body += f"{SHORT[m]} & " + " & ".join(cells) + " \\\\\n"
+        dd = diffs[diffs.outcome == outcome]
+        for m in METHODS[1:]:
+            cells = []
+            for k, sc, nd in [("auqc", 1000, 3)] + [(k, 100, nd_u) for k in ks]:
+                r = dd[(dd.method == m) & (dd.metric == k)].iloc[0]
+                cells.append(_fmt_ci(r.difference_vs_response, r.ci_low, r.ci_high, sc, nd))
+            body += f"\\quad $\\Delta$ {SHORT[m]} $-$ Resp. & " + " & ".join(cells) + " \\\\\n"
+    body += "\\bottomrule\n\\end{tabular}\n"
+    _write(out_dir, "tab_main_results", body)
+
+
+def tab_budget(budget, out_dir):
+    names = {"contact_none": "Contact nobody", "contact_all": "Contact everyone",
+             "random": "Random targeting", **SHORT}
+
+    def ci(lo, hi):
+        return "" if pd.isna(lo) else f" [{_num(lo, 1)}, {_num(hi, 1)}]"
+
+    lines = ""
+    for r in budget.itertuples():
+        diff = "--" if pd.isna(r.diff_vs_response) else _num(r.diff_vs_response, 1, True) + ci(r.diff_ci_low, r.diff_ci_high)
+        orc = "--" if pd.isna(r.profit_test_oracle) else f"{_num(r.profit_test_oracle, 1)} ({r.phi_test_oracle * 100:.0f}\\%)"
+        lines += (f"{names[r.policy]} & {r.phi_selected * 100:.0f}\\% & {_num(r.profit_test, 1)}"
+                  f"{ci(r.profit_test_ci_low, r.profit_test_ci_high)} & {diff} & {orc} \\\\\n")
+    body = ("\\begin{tabular}{lrlll}\n\\toprule\nPolicy & $\\phi^*$ & Test profit [95\\% CI] & $\\Delta$ vs Resp. [95\\% CI] & Oracle ($\\phi$) \\\\\n"
+            "\\midrule\n" + lines + "\\bottomrule\n\\end{tabular}\n")
+    _write(out_dir, "tab_budget", body)
+
+
+def make_all(cfg, results):
+    fig_dir, tab_dir = os.path.join(results, "figures"), os.path.join(results, "tables")
+    top_k = cfg["evaluation"]["top_k"]
+    curves = pd.read_csv(os.path.join(results, "qini_curves.csv"))
+    main = pd.read_csv(os.path.join(results, "main_results.csv"))
+    diffs = pd.read_csv(os.path.join(results, "paired_differences.csv"))
+    budget = pd.read_csv(os.path.join(results, "budget_simulation.csv"))
+    prof_curves = pd.read_csv(os.path.join(results, "profit_curves.csv"))
+    for outcome in [cfg["outcomes"]["primary"], cfg["outcomes"]["secondary"]]:
+        fig_qini(curves, outcome, fig_dir)
+        fig_topk(main, outcome, fig_dir, top_k)
+    fig_profit(prof_curves, budget, cfg["budget"]["V"], cfg["budget"]["c"], fig_dir)
+    tab_profile(pd.read_csv(os.path.join(results, "dataset_profile.csv")), tab_dir)
+    tab_randomization(pd.read_csv(os.path.join(results, "randomization_check.csv")), tab_dir)
+    tab_main(main, diffs, tab_dir, top_k)
+    tab_budget(budget, tab_dir)

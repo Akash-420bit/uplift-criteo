@@ -1,0 +1,62 @@
+# Configuration for the uplift-criteo pipeline.
+# Every number that affects the results is set here, so a re-run with this
+# file reproduces the results/ folder.
+
+seed: 42                       # master seed (sampling, splits, models, bootstrap)
+
+data:
+  # Official file (Criteo AI Lab). The official link redirects to Criteo's
+  # storage; the GitHub copy below is byte-identical (same SHA-256).
+  url_official: https://go.criteo.net/criteo-research-uplift-v2.1.csv.gz
+  url_mirror: https://github.com/jszymon/uplift_sklearn_data/releases/download/Criteo/criteo-research-uplift-v2.1.csv.gz
+  sha256: 2716e1bf0fd157a93b5bf86924d9088419dfbac2022c6cd90030220634f616dc
+  raw_path: data/criteo-research-uplift-v2.1.csv.gz
+  sample_size: 2000000         # simple random sample (without replacement) of the ~14M rows
+
+split:                         # stratified by treatment x visit
+  train: 0.60
+  valid: 0.20
+  test: 0.20
+
+outcomes:
+  primary: visit
+  secondary: conversion
+
+treatment_col: treatment       # randomized assignment (NOT exposure)
+features: [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11]
+
+models:
+  n_jobs: -1
+  lightgbm:                    # used for response model, T-learner, transformed outcome
+    n_estimators: 2000         # upper bound; early stopping on the validation split
+    learning_rate: 0.05
+    num_leaves: 31
+    min_child_samples: 500
+    subsample: 0.8
+    subsample_freq: 1
+    colsample_bytree: 0.8
+    early_stopping_rounds: 50
+  transformed_outcome:         # noisier target -> larger leaves, slower learning
+    learning_rate: 0.02
+    min_child_samples: 2000
+  causal_forest:               # EconML CausalForestDML
+    train_subsample: 200000    # rows drawn from the training split (keeps Colab < 20 min)
+    n_estimators: 200
+    min_samples_leaf: 200
+    max_samples: 0.4
+    cv: 2
+    nuisance_n_estimators: 200 # LightGBM outcome model inside the DML first stage
+
+evaluation:
+  n_bootstrap: 200
+  top_k: [0.10, 0.20, 0.30]
+  curve_points: 101            # points stored for plotting curves
+
+budget:
+  # Illustrative assumptions (currency units are arbitrary, e.g. rupees).
+  V: 100                       # value of one incremental visit
+  c: 1.5                       # cost of contacting one user
+  phi_grid_step: 0.01          # targeting fractions 0, 0.01, ..., 1.00
+  sensitivity:
+    V: [50, 100, 200]
+    c: [0.5, 1.0, 1.5, 2.0, 3.0]

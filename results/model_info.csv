@@ -1,0 +1,9 @@
+method,n_trees,n_train,fit_seconds,outcome,p_treat
+response,269,1200000,13.0,visit,
+t_learner,209/98,1200000,16.0,visit,
+trans_out,141,1200000,203.1,visit,0.8503833333333334
+causal_forest,,200000,201.3,visit,
+response,88,1200000,5.4,conversion,
+t_learner,106/51,1200000,6.5,conversion,
+trans_out,107,1200000,7.0,conversion,0.8503833333333334
+causal_forest,,200000,32.2,conversion,
