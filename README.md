@@ -120,7 +120,7 @@ src/report.py                figures (PDF+PNG) and LaTeX tables from the CSVs
 notebooks/reproduce_colab.ipynb   one-cell-per-step Colab notebook
 docs/data_dictionary.md      column definitions
 results/                     all outputs of the real run (see below)
-paper/                       IEEE-format LaTeX source of the paper
+paper/main.tex, main.pdf     the submitted paper (single LaTeX file; tables inline, figures in paper/figures/)
 ```
 
 ## Results and how they map to the paper
